@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -11,18 +13,12 @@ class JobSearch extends StatefulWidget {
 
 class _JobSearchState extends State<JobSearch> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  final List<TabPage> pages = const [
-    TabPage(tabTitle: '🏠 General Chat'),
-    TabPage(tabTitle: '🛍️ House Rent'),
-    TabPage(tabTitle: '💼 Job Search'),
-    TabPage(tabTitle: '📢 Announcements'),
-  ];
+  final List<String> tabs = ['🏠 General Chat', '🛍️ House Rent', '💼 Job Search', '📢 Announcements'];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: pages.length, vsync: this);
+    _tabController = TabController(length: tabs.length, vsync: this);
   }
 
   @override
@@ -34,7 +30,6 @@ class _JobSearchState extends State<JobSearch> with SingleTickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight + 8),
         child: AppBar(
@@ -48,240 +43,177 @@ class _JobSearchState extends State<JobSearch> with SingleTickerProviderStateMix
               indicatorColor: Colors.white,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
-              tabs: const [
-                Tab(icon: Icon(Icons.home), text: 'General Chat'),
-                Tab(icon: Icon(Icons.storefront), text: 'House Rent'),
-                Tab(icon: Icon(Icons.work), text: 'Job Search'),
-                Tab(icon: Icon(Icons.campaign), text: 'Announcements'),
-              ],
+              tabs: tabs.map((t) => Tab(text: t)).toList(),
             ),
           ),
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: pages,
+        children: tabs.map((tab) => ChatTab(tabName: tab)).toList(),
       ),
     );
   }
 }
 
-// Tab Page Widget
-class TabPage extends StatefulWidget {
-  final String tabTitle;
-  const TabPage({super.key, required this.tabTitle});
+// ChatTab for each sub-tab
+class ChatTab extends StatefulWidget {
+  final String tabName;
+  const ChatTab({super.key, required this.tabName});
 
   @override
-  State<TabPage> createState() => _TabPageState();
+  State<ChatTab> createState() => _ChatTabState();
 }
 
-class _TabPageState extends State<TabPage> {
-  final List<Message> messages = [];
+class _ChatTabState extends State<ChatTab> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _picker = ImagePicker();
 
-  void _sendMessage() {
-    if (_controller.text.trim().isEmpty) return;
-
-    setState(() {
-      messages.insert(0, Message(text: _controller.text.trim(), isSentByMe: true));
-      messages.insert(
-        0,
-        Message(
-          text: "Demo reply: ${_controller.text.trim()}",
-          isSentByMe: false,
-        ),
-      );
-    });
-
-    _controller.clear();
-    _scrollToTop();
-  }
-
-  Future<void> _sendImage() async {
-    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile == null) return;
-
-    setState(() {
-      messages.insert(0, Message(image: File(pickedFile.path), isSentByMe: true));
-    });
-
-    _scrollToTop();
-  }
-
-  Future<void> _takePhoto() async {
-    final XFile? pickedFile = await _picker.pickImage(source: ImageSource.camera);
-    if (pickedFile == null) return;
-
-    setState(() {
-      messages.insert(0, Message(image: File(pickedFile.path), isSentByMe: true));
-    });
-
-    _scrollToTop();
-  }
-
-  void _scrollToTop() {
-    _scrollController.animateTo(
-      0.0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
-  }
+  String get chatId => widget.tabName.replaceAll(RegExp(r'\W'), '_');
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Page title at the top of messages
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            widget.tabTitle,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF333333),
-            ),
-          ),
-        ),
-        const Divider(height: 1, thickness: 0.5, color: Colors.grey),
         Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            reverse: true,
-            padding: const EdgeInsets.all(10),
-            itemCount: messages.length,
-            itemBuilder: (context, index) {
-              final message = messages[index];
-              return Align(
-                alignment: message.isSentByMe ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  padding: const EdgeInsets.all(8),
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
-                  decoration: BoxDecoration(
-                    color: message.isSentByMe ? Colors.blue[400] : Colors.grey[400],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: message.image != null
-                      ? Image.file(message.image!)
-                      : Text(
-                          message.text ?? '',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                ),
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _firestore
+                .collection('chats')
+                .doc(chatId)
+                .collection('messages')
+                .orderBy('timestamp', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              var messages = snapshot.data!.docs;
+
+              return ListView.builder(
+                controller: _scrollController,
+                reverse: true,
+                padding: const EdgeInsets.all(10),
+                itemCount: messages.length,
+                itemBuilder: (context, index) {
+                  var message = messages[index];
+                  bool isMe = message['senderId'] == _auth.currentUser!.uid;
+
+                  return Align(
+                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.all(10),
+                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+                      decoration: BoxDecoration(
+                        color: isMe ? Colors.blue[200] : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: message['imageUrl'] != null
+                          ? Image.network(message['imageUrl'])
+                          : Text(
+                              message['text'] ?? '',
+                              style: const TextStyle(color: Colors.black),
+                            ),
+                    ),
+                  );
+                },
               );
             },
           ),
         ),
-        MessageInputBox(
-          controller: _controller,
-          onSend: _sendMessage,
-          onSendImage: _sendImage,
-          onTakePhoto: _takePhoto,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          color: Colors.grey[100],
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.add, color: Color(0xFF6C88BF)),
+                onPressed: _showImageOptions,
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  decoration: const InputDecoration(
+                    hintText: "Type a message...",
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.send, color: Color(0xFF6C88BF)),
+                onPressed: _sendMessage,
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
-}
 
-class Message {
-  final String? text;
-  final File? image;
-  final bool isSentByMe;
+  Future<void> _sendMessage() async {
+    if (_controller.text.trim().isEmpty) return;
 
-  Message({this.text, this.image, required this.isSentByMe});
-}
+    String uid = _auth.currentUser!.uid;
+    String name = _auth.currentUser!.displayName ?? _auth.currentUser!.email ?? "Anonymous";
 
-class MessageInputBox extends StatelessWidget {
-  final TextEditingController controller;
-  final VoidCallback onSend;
-  final VoidCallback onSendImage;
-  final VoidCallback onTakePhoto;
+    await _firestore.collection('chats').doc(chatId).collection('messages').add({
+      'senderId': uid,
+      'senderName': name,
+      'text': _controller.text.trim(),
+      'timestamp': FieldValue.serverTimestamp(),
+      'imageUrl': null,
+    });
 
-  const MessageInputBox({
-    super.key,
-    required this.controller,
-    required this.onSend,
-    required this.onSendImage,
-    required this.onTakePhoto,
-  });
+    _controller.clear();
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        color: Colors.black,
-        child: Row(
+  void _showImageOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => Container(
+        height: 120,
+        color: Colors.white,
+        child: Column(
           children: [
-            GestureDetector(
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Take Photo'),
               onTap: () {
-                showModalBottomSheet(
-                  context: context,
-                  builder: (_) => Container(
-                    color: Colors.black87,
-                    height: 120,
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.photo_camera, color: Colors.white),
-                          title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
-                          onTap: () {
-                            Navigator.pop(context);
-                            onTakePhoto();
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.photo_library, color: Colors.white),
-                          title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
-                          onTap: () {
-                            Navigator.pop(context);
-                            onSendImage();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                );
+                Navigator.pop(context);
+                _sendImage(ImageSource.camera);
               },
-              child: const CircleAvatar(
-                backgroundColor: Colors.blueGrey,
-                child: Icon(Icons.add, color: Colors.white),
-              ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: 'Type a message...',
-                  hintStyle: const TextStyle(color: Colors.white70),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: const BorderSide(color: Colors.white, width: 2),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: const BorderSide(color: Colors.white, width: 2),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                ),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-            const SizedBox(width: 8),
-            CircleAvatar(
-              backgroundColor: const Color(0xFF6C88BF),
-              child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.white),
-                onPressed: onSend,
-              ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                _sendImage(ImageSource.gallery);
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _sendImage(ImageSource source) async {
+    final XFile? pickedFile = await _picker.pickImage(source: source);
+    if (pickedFile == null) return;
+
+    String uid = _auth.currentUser!.uid;
+    String name = _auth.currentUser!.displayName ?? _auth.currentUser!.email ?? "Anonymous";
+
+    // For now, storing local path. In real app, upload to Firebase Storage
+    String imageUrl = pickedFile.path;
+
+    await _firestore.collection('chats').doc(chatId).collection('messages').add({
+      'senderId': uid,
+      'senderName': name,
+      'text': null,
+      'timestamp': FieldValue.serverTimestamp(),
+      'imageUrl': imageUrl,
+    });
   }
 }
