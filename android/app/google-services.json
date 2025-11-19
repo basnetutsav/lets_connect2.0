@@ -1,29 +1,29 @@
 {
-  "project_info": {
+"project_info": {
     "project_number": "281831747563",
     "project_id": "lets-connect-77ba3",
     "storage_bucket": "lets-connect-77ba3.firebasestorage.app"
-  },
-  "client": [
-    {
-      "client_info": {
+},
+"client": [
+{
+"client_info": {
         "mobilesdk_app_id": "1:281831747563:android:4f97679163cce64557b3ae",
         "android_client_info": {
-          "package_name": "com.example.lets_connect"
+        "package_name": "com.example.lets_connect"
         }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyBFrQ1vK_syPAKqxSvIBe3PfbTtgj3Vgok"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
+    },
+    "oauth_client": [],
+    "api_key": [
+    {
+    "current_key": "AIzaSyBFrQ1vK_syPAKqxSvIBe3PfbTtgj3Vgok"
     }
-  ],
-  "configuration_version": "1"
+],
+    "services": {
+    "appinvite_service": {
+    "other_platform_oauth_client": []
+    }
+}
+}
+],
+"configuration_version": "1"
 }

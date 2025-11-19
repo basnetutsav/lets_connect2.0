@@ -1,9 +1,12 @@
 // top_bar.dart
 import 'package:flutter/material.dart';
+<<<<<<< HEAD
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+=======
+>>>>>>> parent of 63276ed ( create account login works, live chat in progress, inbox chat not working at the momment)
 import 'job_search.dart';
-import 'chat_page.dart';
+import 'inbox_chat.dart';
 import 'settings.dart';
 import 'friend_request.dart';
 import 'notification.dart';
@@ -22,17 +25,23 @@ class TopBar extends StatefulWidget {
 
 class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+<<<<<<< HEAD
   String _userName = 'User';
   String _selectedLocation = 'Ontario';
   bool _loading = true;
 
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+=======
+  bool _darkMode = false;
+  String _selectedLocation = "Ontario"; // Default location
+>>>>>>> parent of 63276ed ( create account login works, live chat in progress, inbox chat not working at the momment)
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+<<<<<<< HEAD
     _loadUserData();
 
     // Listen to auth state changes
@@ -61,6 +70,8 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
     } else {
       setState(() => _loading = false);
     }
+=======
+>>>>>>> parent of 63276ed ( create account login works, live chat in progress, inbox chat not working at the momment)
   }
 
   Future<void> _openSettings() async {
@@ -101,15 +112,23 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+<<<<<<< HEAD
             Text(
               'Hello, $_userName',
               style: TextStyle(
                 fontSize: isSmallScreen ? 14 : 16,
+=======
+            const Text(
+              'Lets Connect',
+              style: TextStyle(
+                fontSize: 16, // smaller main title
+>>>>>>> parent of 63276ed ( create account login works, live chat in progress, inbox chat not working at the momment)
                 fontWeight: FontWeight.w600,
               ),
             ),
             Row(
               children: [
+<<<<<<< HEAD
                 Icon(
                   Icons.location_on,
                   size: isSmallScreen ? 12 : 14,
@@ -120,6 +139,14 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
                   _selectedLocation,
                   style: TextStyle(
                     fontSize: isSmallScreen ? 10 : 12,
+=======
+                const Icon(Icons.location_on, size: 14, color: Colors.white70),
+                const SizedBox(width: 4),
+                Text(
+                  _selectedLocation,
+                  style: const TextStyle(
+                    fontSize: 12, // smaller subtitle
+>>>>>>> parent of 63276ed ( create account login works, live chat in progress, inbox chat not working at the momment)
                     color: Colors.white70,
                   ),
                 ),
@@ -129,6 +156,7 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
         ),
         actions: [
           IconButton(
+<<<<<<< HEAD
             icon: Icon(Icons.settings, size: isSmallScreen ? 20 : 24),
             onPressed: _openSettings,
           ),
@@ -271,6 +299,27 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
           },
         );
       },
+=======
+            icon: const Icon(Icons.settings),
+            onPressed: _openSettings,
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.home), text: 'Home'),
+            Tab(icon: Icon(Icons.chat), text: 'Chat'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: const [
+          JobSearch(),
+          InboxPage(),
+        ],
+      ),
+>>>>>>> parent of 63276ed ( create account login works, live chat in progress, inbox chat not working at the momment)
     );
   }
 

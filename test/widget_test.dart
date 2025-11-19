@@ -1,31 +1,30 @@
+// This is a basic Flutter widget test.
+//
+// To perform an interaction with a widget in your test, use the WidgetTester
+// utility in the flutter_test package. For example, you can send tap and scroll
+// gestures. You can also use WidgetTester to find child widgets in the widget
+// tree, read text, and verify that the values of widget properties are correct.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:lets_connect/main.dart';
 
 void main() {
-  testWidgets('Login page loads correctly', (WidgetTester tester) async {
-    // Build the app
+  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+    // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    // Verify that the Login page is displayed
-    expect(find.text('Login'), findsOneWidget);
+    // Verify that our counter starts at 0.
+    expect(find.text('0'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
 
-    // Check that email and password TextFields exist
-    expect(find.byType(TextField), findsNWidgets(2));
+    // Tap the '+' icon and trigger a frame.
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pump();
 
-    // Optionally, check for a Login button if you have a RaisedButton / ElevatedButton
-    expect(find.byType(ElevatedButton), findsOneWidget);
-
-    // You can simulate a user entering text
-    await tester.enterText(find.byType(TextField).at(0), 'test@example.com'); // email
-    await tester.enterText(find.byType(TextField).at(1), 'password123');       // password
-
-    // Tap the Login button
-    await tester.tap(find.byType(ElevatedButton));
-    await tester.pumpAndSettle();
-
-    // If login navigates to another page, check for some widget/text on that page
-    // Example:
-    // expect(find.text('Welcome'), findsOneWidget);
+    // Verify that our counter has incremented.
+    expect(find.text('0'), findsNothing);
+    expect(find.text('1'), findsOneWidget);
   });
 }

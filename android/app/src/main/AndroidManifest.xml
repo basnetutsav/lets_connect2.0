@@ -1,7 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.lets_connect">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="lets_connect"
+        android:label="lets_connect_new"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
