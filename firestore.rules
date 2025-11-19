@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Users collection rules - SIMPLIFIED AND PERMISSIVE
+    match /users/{userId} {
+      // Anyone authenticated can read any user profile
+      allow read: if isAuthenticated();
+      
+      // Anyone authenticated can create/update user documents
+      allow create, update: if isAuthenticated();
+      
+      // Users cannot delete profiles
+      allow delete: if false;
+      
+      // Friends subcollection - FULLY PERMISSIVE
+      match /friends/{friendId} {
+        // Anyone authenticated can read, write friends
+        allow read, write: if isAuthenticated();
+      }
+      
+      // Blocked users subcollection - FULLY PERMISSIVE
+      match /blockedUsers/{blockedUserId} {
+        // Anyone authenticated can read, write blocked users
+        allow read, write: if isAuthenticated();
+      }
+    }
+    
+    // Friend Requests collection rules - FULLY PERMISSIVE
+    match /friendRequests/{userId} {
+      // Anyone authenticated can read, write friend requests
+      allow read, write: if isAuthenticated();
+      
+      // Requests subcollection - FULLY PERMISSIVE
+      match /requests/{requestId} {
+        // Anyone authenticated can read, write requests
+        allow read, write: if isAuthenticated();
+      }
+    }
+    
+    // Collection group query rule for requests - FULLY PERMISSIVE
+    match /{path=**}/requests/{requestId} {
+      // Anyone authenticated can read any request
+      allow read: if isAuthenticated();
+    }
+    
+    // Notifications collection rules - FULLY PERMISSIVE
+    match /notifications/{userId} {
+      // Anyone authenticated can read, write notifications
+      allow read, write: if isAuthenticated();
+      
+      // Notifications subcollection - FULLY PERMISSIVE
+      match /notifications/{notificationId} {
+        // Anyone authenticated can read, write notifications
+        allow read, write: if isAuthenticated();
+      }
+    }
+    
+    // Chats collection rules - PERMISSIVE
+    match /chats/{chatId} {
+      // Anyone authenticated can read, write chats
+      allow read, write: if isAuthenticated();
+      
+      // Messages subcollection - PERMISSIVE
+      match /messages/{messageId} {
+        // Anyone authenticated can read, write messages
+        allow read, write: if isAuthenticated();
+      }
+    }
+    
+    // Blocked users collection (if used at root level)
+    match /blockedUsers/{blockId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

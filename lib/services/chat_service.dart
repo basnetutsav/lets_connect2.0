@@ -46,7 +46,32 @@ class ChatService {
       await chatDoc.set({
         'users': users,
         'createdAt': FieldValue.serverTimestamp(),
+        'readStatus': {for (var user in users) user: FieldValue.serverTimestamp()}, // Initialize read status for each user
       });
     }
+  }
+
+  // Update read status for a user in a chat
+  Future<void> updateReadStatus(String chatId, String userId) async {
+    await _db.collection('chats').doc(chatId).update({
+      'readStatus.$userId': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Get unread message count for a user in a chat
+  Future<int> getUnreadCount(String chatId, String userId) async {
+    var chatDoc = await _db.collection('chats').doc(chatId).get();
+    if (!chatDoc.exists) return 0;
+
+    var readStatus = chatDoc.data()?['readStatus']?[userId];
+    if (readStatus == null) return 0; // If never read, all messages are unread
+
+    var messages = await _db.collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .where('timestamp', isGreaterThan: readStatus)
+        .get();
+
+    return messages.docs.length;
   }
 }

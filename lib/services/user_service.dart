@@ -28,4 +28,44 @@ class UserService {
   Future<DocumentSnapshot> getUserByUid(String uid) async {
     return await _db.collection('users').doc(uid).get();
   }
+
+  // Get list of friend UIDs (accepted friend requests)
+  Future<List<String>> getFriendUids(String currentUid) async {
+    final requests = await _db
+        .collection('friendRequests')
+        .doc(currentUid)
+        .collection('requests')
+        .where('status', isEqualTo: 'accepted')
+        .get();
+
+    final friendUids = <String>{};
+
+    for (var doc in requests.docs) {
+      final data = doc.data();
+      final otherUid = data['from'] == currentUid ? data['to'] : data['from'];
+      friendUids.add(otherUid);
+    }
+
+    return friendUids.toList();
+  }
+
+  // Send friend request
+  Future<void> sendFriendRequest(String fromUid, String toUid) async {
+    final requestId = '${fromUid}_$toUid';
+    await _db.collection('friendRequests').doc(fromUid).collection('requests').doc(requestId).set({
+      'from': fromUid,
+      'to': toUid,
+      'status': 'pending',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    // Also create the request in the recipient's collection for easier querying
+    final recipientRequestId = '${fromUid}_$toUid';
+    await _db.collection('friendRequests').doc(toUid).collection('requests').doc(recipientRequestId).set({
+      'from': fromUid,
+      'to': toUid,
+      'status': 'pending',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
 }

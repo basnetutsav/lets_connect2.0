@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
+import 'profile_page.dart';
 
 class SettingsPage extends StatefulWidget {
   final Function(bool) toggleTheme;
@@ -55,17 +56,31 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Column(
             children: [
               ListTile(
-                leading: const Icon(Icons.person),
-                title: const Text('Profile'),
-                onTap: () => ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('Profile clicked!'))),
-              ),
-              ListTile(
-                leading: const Icon(Icons.notifications),
-                title: const Text('Notifications'),
-                onTap: () => ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('Notifications clicked!'))),
-              ),
+  leading: const Icon(Icons.person),
+  title: const Text('Profile'),
+  onTap: () async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfilePage(
+          currentName: "Your Name",
+          currentLocation: _selectedLocation,
+        ),
+      ),
+    );
+
+    if (result != null && result is Map) {
+      setState(() {
+        _selectedLocation = result['location'] ?? _selectedLocation;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Profile updated successfully')),
+      );
+    }
+  },
+),
+
               ListTile(
                 leading: const Icon(Icons.lock),
                 title: const Text('Privacy'),

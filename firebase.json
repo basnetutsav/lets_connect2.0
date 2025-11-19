@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"lets-connect-77ba3","appId":"1:281831747563:android:4f97679163cce64557b3ae","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"lets-connect-77ba3","configurations":{"android":"1:281831747563:android:4f97679163cce64557b3ae","web":"1:281831747563:web:b2092692df9d51b657b3ae"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "lets-connect-77ba3",
+          "appId": "1:281831747563:android:4f97679163cce64557b3ae",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "lets-connect-77ba3",
+          "configurations": {
+            "android": "1:281831747563:android:4f97679163cce64557b3ae",
+            "web": "1:281831747563:web:b2092692df9d51b657b3ae"
+          }
+        }
+      }
+    }
+  }
+}
