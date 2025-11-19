@@ -36,9 +36,15 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.otherUserName),
+        title: Text(
+          widget.otherUserName,
+          style: TextStyle(fontSize: isSmallScreen ? 18 : 20),
+        ),
         actions: widget.otherUserUid != null ? [
           FutureBuilder<bool>(
             future: _isFriend(),
@@ -47,7 +53,7 @@ class _ChatPageState extends State<ChatPage> {
               final isFriend = snapshot.data!;
               if (isFriend) return const SizedBox();
               return IconButton(
-                icon: const Icon(Icons.person_add),
+                icon: Icon(Icons.person_add, size: isSmallScreen ? 20 : 24),
                 onPressed: _sendFriendRequest,
               );
             },
@@ -71,7 +77,7 @@ class _ChatPageState extends State<ChatPage> {
                 return ListView.builder(
                   reverse: true,
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(isSmallScreen ? 6 : 8),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     var message = messages[index];
@@ -81,36 +87,48 @@ class _ChatPageState extends State<ChatPage> {
                     Widget avatar = GestureDetector(
                       onTapDown: (details) => _showProfileBubble(message['senderId']),
                       child: CircleAvatar(
-                        radius: 18,
-                        child: Text(senderName[0].toUpperCase(), style: const TextStyle(color: Colors.white)),
+                        radius: isSmallScreen ? 16 : 18,
+                        child: Text(
+                          senderName[0].toUpperCase(),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: isSmallScreen ? 12 : 14,
+                          ),
+                        ),
                         backgroundColor: isMe ? Colors.blueAccent : Colors.grey,
                       ),
                     );
 
                     return Container(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 3 : 4),
                       child: Row(
                         mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (!isMe) avatar,
-                          if (!isMe) const SizedBox(width: 6),
+                          if (!isMe) SizedBox(width: isSmallScreen ? 5 : 6),
                           Flexible(
                             child: Container(
-                              padding: const EdgeInsets.all(10),
+                              padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+                              constraints: BoxConstraints(
+                                maxWidth: screenWidth * 0.7, // Limit message width to 70% of screen
+                              ),
                               decoration: BoxDecoration(
                                 color: isMe ? Colors.blue[200] : Colors.grey[300],
                                 borderRadius: BorderRadius.only(
-                                  topLeft: const Radius.circular(12),
-                                  topRight: const Radius.circular(12),
-                                  bottomLeft: Radius.circular(isMe ? 12 : 0),
-                                  bottomRight: Radius.circular(isMe ? 0 : 12),
+                                  topLeft: Radius.circular(isSmallScreen ? 10 : 12),
+                                  topRight: Radius.circular(isSmallScreen ? 10 : 12),
+                                  bottomLeft: Radius.circular(isMe ? (isSmallScreen ? 10 : 12) : 0),
+                                  bottomRight: Radius.circular(isMe ? 0 : (isSmallScreen ? 10 : 12)),
                                 ),
                               ),
-                              child: Text(message['text'] ?? ''),
+                              child: Text(
+                                message['text'] ?? '',
+                                style: TextStyle(fontSize: isSmallScreen ? 14 : 16),
+                              ),
                             ),
                           ),
-                          if (isMe) const SizedBox(width: 6),
+                          if (isMe) SizedBox(width: isSmallScreen ? 5 : 6),
                           if (isMe) avatar,
                         ],
                       ),
@@ -127,29 +145,32 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildMessageInput() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      color: Colors.grey[100],
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.add, color: Color(0xFF6C88BF)),
-            onPressed: _showImageOptions,
-          ),
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              decoration: const InputDecoration(
-                hintText: "Type a message...",
-                border: InputBorder.none,
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        color: Colors.grey[100],
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.add, color: Color(0xFF6C88BF)),
+              onPressed: _showImageOptions,
+            ),
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                decoration: const InputDecoration(
+                  hintText: "Type a message...",
+                  border: InputBorder.none,
+                ),
               ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.send, color: Color(0xFF6C88BF)),
-            onPressed: _sendMessage,
-          ),
-        ],
+            IconButton(
+              icon: const Icon(Icons.send, color: Color(0xFF6C88BF)),
+              onPressed: _sendMessage,
+            ),
+          ],
+        ),
       ),
     );
   }

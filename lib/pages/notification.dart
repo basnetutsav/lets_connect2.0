@@ -11,14 +11,20 @@ class NotificationDialog {
       return;
     }
     final currentUid = currentUser.uid;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenWidth < 600;
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Notifications'),
+        title: Text(
+          'Notifications',
+          style: TextStyle(fontSize: isSmallScreen ? 18 : 20),
+        ),
         content: SizedBox(
-          width: 340,
-          height: 420,
+          width: isSmallScreen ? screenWidth * 0.9 : 340,
+          height: isSmallScreen ? screenHeight * 0.6 : 420,
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('notifications')
@@ -98,7 +104,7 @@ class NotificationDialog {
                   if (type == 'request_sent') {
                     subtitle = message.isNotEmpty ? message : '$fromName sent you a friend request';
                     actions = [
-                      TextButton(
+                      IconButton(
                         onPressed: () async {
                           await _acceptFriendRequest(
                             requestId,
@@ -111,9 +117,11 @@ class NotificationDialog {
                             'You accepted $fromName\'s request',
                           );
                         },
-                        child: const Text('Accept'),
+                        icon: const Icon(Icons.check_circle, color: Colors.green),
+                        tooltip: 'Accept',
+                        iconSize: 20,
                       ),
-                      TextButton(
+                      IconButton(
                         onPressed: () async {
                           await _declineFriendRequest(requestId, notifId);
                           NotificationService.show(
@@ -121,9 +129,11 @@ class NotificationDialog {
                             'You declined $fromName\'s request',
                           );
                         },
-                        child: const Text('Decline'),
+                        icon: const Icon(Icons.cancel, color: Colors.red),
+                        tooltip: 'Decline',
+                        iconSize: 20,
                       ),
-                      TextButton(
+                      IconButton(
                         onPressed: () async {
                           await _blockUser(fromUid, notifId);
                           NotificationService.show(
@@ -131,7 +141,9 @@ class NotificationDialog {
                             'You blocked $fromName',
                           );
                         },
-                        child: const Text('Block'),
+                        icon: const Icon(Icons.block, color: Colors.grey),
+                        tooltip: 'Block',
+                        iconSize: 20,
                       ),
                     ];
                   } else if (type == 'request_accepted') {
@@ -149,15 +161,8 @@ class NotificationDialog {
 
                   return Card(
                     color: seen ? null : Colors.grey[100],
-                    child: ListTile(
-                      title: Text(fromName),
-                      subtitle: Text(subtitle),
-                      trailing: actions.isNotEmpty
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: actions,
-                            )
-                          : null,
+                    margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: InkWell(
                       onTap: () async {
                         try {
                           await FirebaseFirestore.instance
@@ -173,6 +178,51 @@ class NotificationDialog {
                           );
                         }
                       },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Main content (title and subtitle)
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    fromName,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: isSmallScreen ? 13 : 14,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    subtitle,
+                                    style: TextStyle(
+                                      fontSize: isSmallScreen ? 11 : 12,
+                                      color: Colors.grey[700],
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Action buttons (if any)
+                            if (actions.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: actions,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 },

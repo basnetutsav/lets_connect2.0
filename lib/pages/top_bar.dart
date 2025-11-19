@@ -7,6 +7,7 @@ import 'chat_page.dart';
 import 'settings.dart';
 import 'friend_request.dart';
 import 'notification.dart';
+import 'login_page.dart';
 import '../services/chat_service.dart';
 
 class TopBar extends StatefulWidget {
@@ -91,6 +92,8 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
     }
 
     final currentUid = currentUser.uid;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
 
     return Scaffold(
       appBar: AppBar(
@@ -98,18 +101,37 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Hello, $_userName', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(
+              'Hello, $_userName',
+              style: TextStyle(
+                fontSize: isSmallScreen ? 14 : 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             Row(
               children: [
-                const Icon(Icons.location_on, size: 14, color: Colors.white70),
-                const SizedBox(width: 4),
-                Text(_selectedLocation, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                Icon(
+                  Icons.location_on,
+                  size: isSmallScreen ? 12 : 14,
+                  color: Colors.white70,
+                ),
+                SizedBox(width: isSmallScreen ? 3 : 4),
+                Text(
+                  _selectedLocation,
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 10 : 12,
+                    color: Colors.white70,
+                  ),
+                ),
               ],
             ),
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.settings), onPressed: _openSettings),
+          IconButton(
+            icon: Icon(Icons.settings, size: isSmallScreen ? 20 : 24),
+            onPressed: _openSettings,
+          ),
 
           // NOTIFICATION ICON (Bell) - Shows notification dialog
           StreamBuilder<QuerySnapshot>(
@@ -125,21 +147,24 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
               return Stack(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.notifications),
+                    icon: Icon(Icons.notifications, size: isSmallScreen ? 20 : 24),
                     onPressed: () {
                       NotificationDialog.show(context);
                     },
                   ),
                   if (count > 0)
                     Positioned(
-                      right: 6,
-                      top: 6,
+                      right: isSmallScreen ? 4 : 6,
+                      top: isSmallScreen ? 4 : 6,
                       child: CircleAvatar(
-                        radius: 10,
+                        radius: isSmallScreen ? 8 : 10,
                         backgroundColor: Colors.red,
                         child: Text(
                           '$count',
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: isSmallScreen ? 10 : 12,
+                          ),
                         ),
                       ),
                     ),
@@ -149,7 +174,7 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
           ),
           // FRIEND REQUEST ICON - Shows friend request page
           IconButton(
-            icon: const Icon(Icons.person_add),
+            icon: Icon(Icons.person_add, size: isSmallScreen ? 20 : 24),
             onPressed: () {
               Navigator.push(
                 context,
@@ -157,17 +182,20 @@ class _TopBarState extends State<TopBar> with SingleTickerProviderStateMixin {
               );
             },
           ),
-          // SIGN OUT ICON
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _signOut,
-            tooltip: 'Sign Out',
-          ),
         ],
-        bottom: TabBar(controller: _tabController, tabs: const [
-          Tab(icon: Icon(Icons.home), text: 'Home'),
-          Tab(icon: Icon(Icons.chat), text: 'Chat'),
-        ]),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: [
+            Tab(
+              icon: Icon(Icons.home, size: isSmallScreen ? 18 : 24),
+              text: 'Home',
+            ),
+            Tab(
+              icon: Icon(Icons.chat, size: isSmallScreen ? 18 : 24),
+              text: 'Chat',
+            ),
+          ],
+        ),
       ),
       body: TabBarView(controller: _tabController, children: [
         const JobSearch(),

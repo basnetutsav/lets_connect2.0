@@ -335,16 +335,41 @@ class _FriendRequestPageState extends State<FriendRequestPage>
                   timeDisplay = 'No timestamp available';
                 }
 
+                final screenWidth = MediaQuery.of(context).size.width;
+                final isSmallScreen = screenWidth < 360;
+                final isMediumScreen = screenWidth >= 360 && screenWidth < 600;
+                
+                // Check if this is a pending request with actions
+                final hasPendingActions = status == 'pending' && isReceived;
+                
+                // Responsive sizing - more compact for pending requests with actions
+                final avatarRadius = isSmallScreen ? 16.0 : (hasPendingActions ? 18.0 : 20.0);
+                final titleFontSize = isSmallScreen ? 12.0 : (hasPendingActions ? 13.0 : 14.0);
+                final subtitleFontSize = isSmallScreen ? 10.0 : (hasPendingActions ? 11.0 : 12.0);
+                final timeFontSize = isSmallScreen ? 9.0 : (hasPendingActions ? 9.0 : 10.0);
+                final iconSize = isSmallScreen ? 12.0 : 14.0;
+                final actionIconSize = isSmallScreen ? 18.0 : 20.0;
+                final statusFontSize = isSmallScreen ? 10.0 : 11.0;
+                final statusIconSize = isSmallScreen ? 12.0 : 14.0;
+                
                 return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  margin: EdgeInsets.symmetric(
+                    horizontal: isSmallScreen ? 6 : 8,
+                    vertical: isSmallScreen ? 2 : 3,
+                  ),
                   elevation: 2,
                   child: ListTile(
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: isSmallScreen ? 6 : (hasPendingActions ? 8 : 12),
+                      vertical: hasPendingActions ? 4 : (isSmallScreen ? 2 : 4),
+                    ),
                     leading: CircleAvatar(
+                      radius: avatarRadius,
                       backgroundImage: userData['profilePicUrl'] != null
                           ? NetworkImage(userData['profilePicUrl'])
                           : null,
                       child: userData['profilePicUrl'] == null
-                          ? const Icon(Icons.person)
+                          ? Icon(Icons.person, size: avatarRadius)
                           : null,
                     ),
                     title: Row(
@@ -352,73 +377,92 @@ class _FriendRequestPageState extends State<FriendRequestPage>
                         Expanded(
                           child: Text(
                             userData['name'] ?? 'Unknown',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: titleFontSize,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Icon(
                           isReceived ? Icons.arrow_downward : Icons.arrow_upward,
-                          size: 16,
+                          size: iconSize,
                           color: isReceived ? Colors.blue : Colors.orange,
                         ),
                       ],
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const SizedBox(height: 4),
+                        SizedBox(height: hasPendingActions ? 2 : (isSmallScreen ? 1 : 2)),
                         Text(
                           isReceived
                               ? 'Received from ${userData['name'] ?? 'Unknown'}'
                               : 'Sent to ${userData['name'] ?? 'Unknown'}',
-                          style: const TextStyle(fontSize: 13),
+                          style: TextStyle(fontSize: subtitleFontSize),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 1),
                         Text(
                           timeDisplay,
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                          style: TextStyle(fontSize: timeFontSize, color: Colors.grey),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                    trailing: status == 'pending' && isReceived
-                        ? Column(
+                    trailing: hasPendingActions
+                        ? Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(
-                                icon: const Icon(Icons.check, color: Colors.green, size: 20),
-                                onPressed: () => _acceptRequest(request.id, otherUid, userData['name']),
-                                tooltip: 'Accept',
+                              InkWell(
+                                onTap: () => _acceptRequest(request.id, otherUid, userData['name']),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(Icons.check, color: Colors.green, size: actionIconSize),
+                                ),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.close, color: Colors.red, size: 20),
-                                onPressed: () => _declineRequest(request.id, otherUid, userData['name']),
-                                tooltip: 'Decline',
+                              const SizedBox(width: 4),
+                              InkWell(
+                                onTap: () => _declineRequest(request.id, otherUid, userData['name']),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(Icons.close, color: Colors.red, size: actionIconSize),
+                                ),
                               ),
                             ],
                           )
                         : Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isSmallScreen ? 6 : 8,
+                              vertical: isSmallScreen ? 3 : 4,
+                            ),
                             decoration: BoxDecoration(
                               color: statusColor.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(isSmallScreen ? 8 : 10),
                               border: Border.all(color: statusColor.withOpacity(0.5)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(statusIcon, size: 16, color: statusColor),
-                                const SizedBox(width: 4),
+                                Icon(statusIcon, size: statusIconSize, color: statusColor),
+                                SizedBox(width: isSmallScreen ? 2 : 3),
                                 Text(
                                   statusText,
                                   style: TextStyle(
                                     color: statusColor,
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 12,
+                                    fontSize: statusFontSize,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                    isThreeLine: true,
+                    isThreeLine: false,
+                    dense: true,
                   ),
                 );
               },

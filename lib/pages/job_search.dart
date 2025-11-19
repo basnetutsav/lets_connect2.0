@@ -74,10 +74,11 @@ class _JobSearchState extends State<JobSearch>
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: Text(name),
+        title: Center(child: Text(name)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Profile Picture
             FutureBuilder<DocumentSnapshot>(
               future: _firestore
                   .collection('users')
@@ -123,221 +124,255 @@ class _JobSearchState extends State<JobSearch>
                 );
               },
             ),
+            const SizedBox(height: 20),
+            // Action Buttons - Centered
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Block/Unblock Button
+                FutureBuilder<DocumentSnapshot>(
+                  future: _firestore
+                      .collection('users')
+                      .doc(_auth.currentUser!.uid)
+                      .collection('blockedUsers')
+                      .doc(userId)
+                      .get(),
+                  builder: (context, blockSnapshot) {
+                    final isBlocked = blockSnapshot.hasData && blockSnapshot.data!.exists;
+
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          if (isBlocked) {
+                            await _unblockUser(userId, name);
+                          } else {
+                            await _blockUserFromProfile(userId, name);
+                          }
+                        },
+                        icon: Icon(
+                          isBlocked ? Icons.check_circle : Icons.block,
+                          size: 18,
+                        ),
+                        label: Text(isBlocked ? 'Unblock' : 'Block'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isBlocked ? Colors.green : Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                // Add Friend Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final currentUser = _auth.currentUser!;
+                      final currentUid = currentUser.uid;
+                      final currentName =
+                          currentUser.displayName ?? currentUser.email ?? 'Someone';
+
+                      try {
+                        // Check if user is blocked
+                        final isBlockedByMe = await _firestore
+                            .collection('users')
+                            .doc(currentUid)
+                            .collection('blockedUsers')
+                            .doc(userId)
+                            .get();
+
+                        if (isBlockedByMe.exists) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('You have blocked this user')),
+                          );
+                          return;
+                        }
+
+                        // Check if already friends
+                        final friendDoc = await _firestore
+                            .collection('users')
+                            .doc(currentUid)
+                            .collection('friends')
+                            .doc(userId)
+                            .get();
+
+                        if (friendDoc.exists) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('You are already friends')),
+                          );
+                          return;
+                        }
+
+                        // Check if request already sent
+                        final existingRequest = await _firestore
+                            .collection('friendRequests')
+                            .doc(userId)
+                            .collection('requests')
+                            .where('from', isEqualTo: currentUid)
+                            .where('status', isEqualTo: 'pending')
+                            .get();
+
+                        if (existingRequest.docs.isNotEmpty) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Friend request already sent')),
+                          );
+                          return;
+                        }
+
+                        // Check if blocked by them
+                        final blockedDoc = await _firestore
+                            .collection('users')
+                            .doc(userId)
+                            .collection('blockedUsers')
+                            .doc(currentUid)
+                            .get();
+
+                        if (blockedDoc.exists) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Unable to send friend request')),
+                          );
+                          return;
+                        }
+
+                        // Create notifications parent document for receiver if it doesn't exist
+                        await _firestore.collection('notifications').doc(userId).set({
+                          'createdAt': FieldValue.serverTimestamp(),
+                        }, SetOptions(merge: true));
+
+                        // Create notifications parent document for sender if it doesn't exist
+                        await _firestore.collection('notifications').doc(currentUid).set({
+                          'createdAt': FieldValue.serverTimestamp(),
+                        }, SetOptions(merge: true));
+
+                        // Use consistent request ID format
+                        final requestId = '${currentUid}_$userId';
+
+                        // Send friend request to receiver
+                        await _firestore
+                            .collection('friendRequests')
+                            .doc(userId)
+                            .collection('requests')
+                            .doc(requestId)
+                            .set({
+                              'from': currentUid,
+                              'to': userId,
+                              'status': 'pending',
+                              'timestamp': FieldValue.serverTimestamp(),
+                            });
+
+                        // Also add to sender's history
+                        await _firestore
+                            .collection('friendRequests')
+                            .doc(currentUid)
+                            .collection('requests')
+                            .doc(requestId)
+                            .set({
+                              'from': currentUid,
+                              'to': userId,
+                              'status': 'pending',
+                              'timestamp': FieldValue.serverTimestamp(),
+                            });
+
+                        // Send notification to receiver
+                        await _firestore
+                            .collection('notifications')
+                            .doc(userId)
+                            .collection('notifications')
+                            .add({
+                              'fromUid': currentUid,
+                              'fromName': currentName,
+                              'type': 'request_sent',
+                              'requestId': requestId,
+                              'message': '$currentName sent you a friend request',
+                              'timestamp': FieldValue.serverTimestamp(),
+                              'seen': false,
+                            });
+
+                        // Send confirmation notification to sender
+                        await _firestore
+                            .collection('notifications')
+                            .doc(currentUid)
+                            .collection('notifications')
+                            .add({
+                              'fromUid': userId,
+                              'fromName': name,
+                              'type': 'request_sent_confirm',
+                              'requestId': requestId,
+                              'message': 'You sent a friend request to $name',
+                              'timestamp': FieldValue.serverTimestamp(),
+                              'seen': false,
+                            });
+
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Friend request sent')),
+                        );
+                      } catch (e) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error sending request: $e')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.person_add, size: 18),
+                    label: const Text('Add Friend'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C88BF),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // DM Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final chatId = ChatService().generateChatId(_auth.currentUser!.uid, userId);
+                      await ChatService().createChatIfNotExists(chatId, [_auth.currentUser!.uid, userId]);
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatPage(
+                            chatId: chatId,
+                            otherUserName: name,
+                            otherUserUid: userId,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.message, size: 18),
+                    label: const Text('DM'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Close Button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Close'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
-        actions: [
-          // Check if user is blocked and show Block/Unblock button
-          FutureBuilder<DocumentSnapshot>(
-            future: _firestore
-                .collection('users')
-                .doc(_auth.currentUser!.uid)
-                .collection('blockedUsers')
-                .doc(userId)
-                .get(),
-            builder: (context, blockSnapshot) {
-              final isBlocked = blockSnapshot.hasData && blockSnapshot.data!.exists;
-
-              return TextButton.icon(
-                onPressed: () async {
-                  if (isBlocked) {
-                    // Unblock user
-                    await _unblockUser(userId, name);
-                  } else {
-                    // Block user
-                    await _blockUserFromProfile(userId, name);
-                  }
-                },
-                icon: Icon(
-                  isBlocked ? Icons.check_circle : Icons.block,
-                  color: isBlocked ? Colors.green : Colors.red,
-                ),
-                label: Text(
-                  isBlocked ? 'Unblock' : 'Block',
-                  style: TextStyle(
-                    color: isBlocked ? Colors.green : Colors.red,
-                  ),
-                ),
-              );
-            },
-          ),
-          TextButton(
-            onPressed: () async {
-              final currentUser = _auth.currentUser!;
-              final currentUid = currentUser.uid;
-              final currentName =
-                  currentUser.displayName ?? currentUser.email ?? 'Someone';
-
-              try {
-                // Check if user is blocked
-                final isBlockedByMe = await _firestore
-                    .collection('users')
-                    .doc(currentUid)
-                    .collection('blockedUsers')
-                    .doc(userId)
-                    .get();
-
-                if (isBlockedByMe.exists) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('You have blocked this user')),
-                  );
-                  return;
-                }
-
-                // Check if already friends
-                final friendDoc = await _firestore
-                    .collection('users')
-                    .doc(currentUid)
-                    .collection('friends')
-                    .doc(userId)
-                    .get();
-
-                if (friendDoc.exists) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('You are already friends')),
-                  );
-                  return;
-                }
-
-                // Check if request already sent
-                final existingRequest = await _firestore
-                    .collection('friendRequests')
-                    .doc(userId)
-                    .collection('requests')
-                    .where('from', isEqualTo: currentUid)
-                    .where('status', isEqualTo: 'pending')
-                    .get();
-
-                if (existingRequest.docs.isNotEmpty) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Friend request already sent')),
-                  );
-                  return;
-                }
-
-                // Check if blocked by them
-                final blockedDoc = await _firestore
-                    .collection('users')
-                    .doc(userId)
-                    .collection('blockedUsers')
-                    .doc(currentUid)
-                    .get();
-
-                if (blockedDoc.exists) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Unable to send friend request')),
-                  );
-                  return;
-                }
-
-                // Create notifications parent document for receiver if it doesn't exist
-                await _firestore.collection('notifications').doc(userId).set({
-                  'createdAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
-
-                // Create notifications parent document for sender if it doesn't exist
-                await _firestore.collection('notifications').doc(currentUid).set({
-                  'createdAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
-
-                // Use consistent request ID format
-                final requestId = '${currentUid}_$userId';
-
-                // Send friend request to receiver
-                await _firestore
-                    .collection('friendRequests')
-                    .doc(userId)
-                    .collection('requests')
-                    .doc(requestId)
-                    .set({
-                      'from': currentUid,
-                      'to': userId,
-                      'status': 'pending',
-                      'timestamp': FieldValue.serverTimestamp(),
-                    });
-
-                // Also add to sender's history
-                await _firestore
-                    .collection('friendRequests')
-                    .doc(currentUid)
-                    .collection('requests')
-                    .doc(requestId)
-                    .set({
-                      'from': currentUid,
-                      'to': userId,
-                      'status': 'pending',
-                      'timestamp': FieldValue.serverTimestamp(),
-                    });
-
-                // Send notification to receiver
-                await _firestore
-                    .collection('notifications')
-                    .doc(userId)
-                    .collection('notifications')
-                    .add({
-                      'fromUid': currentUid,
-                      'fromName': currentName,
-                      'type': 'request_sent',
-                      'requestId': requestId,
-                      'message': '$currentName sent you a friend request',
-                      'timestamp': FieldValue.serverTimestamp(),
-                      'seen': false,
-                    });
-
-                // Send confirmation notification to sender
-                await _firestore
-                    .collection('notifications')
-                    .doc(currentUid)
-                    .collection('notifications')
-                    .add({
-                      'fromUid': userId,
-                      'fromName': name,
-                      'type': 'request_sent_confirm',
-                      'requestId': requestId,
-                      'message': 'You sent a friend request to $name',
-                      'timestamp': FieldValue.serverTimestamp(),
-                      'seen': false,
-                    });
-
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Friend request sent')),
-                );
-              } catch (e) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error sending request: $e')),
-                );
-              }
-            },
-            child: const Text('Add Friend'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final chatId = ChatService().generateChatId(_auth.currentUser!.uid, userId);
-              await ChatService().createChatIfNotExists(chatId, [_auth.currentUser!.uid, userId]);
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatPage(
-                    chatId: chatId,
-                    otherUserName: name,
-                    otherUserUid: userId,
-                  ),
-                ),
-              );
-            },
-            child: const Text('DM'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
@@ -410,12 +445,15 @@ class _JobSearchState extends State<JobSearch>
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
+
     return Column(
       children: [
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
-          height: _isTabBarVisible ? 56 : 0,
+          height: _isTabBarVisible ? (isSmallScreen ? 48 : 56) : 0,
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 300),
             opacity: _isTabBarVisible ? 1.0 : 0.0,
@@ -423,13 +461,19 @@ class _JobSearchState extends State<JobSearch>
               color: Colors.white,
               child: TabBar(
                 controller: _tabController,
-                isScrollable: false,
+                isScrollable: isSmallScreen,
                 labelColor: const Color(0xFF6C88BF),
                 unselectedLabelColor: Colors.grey,
                 indicatorColor: const Color(0xFF6C88BF),
-                labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                unselectedLabelStyle: const TextStyle(fontSize: 13),
-                labelPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                labelStyle: TextStyle(
+                  fontSize: isSmallScreen ? 12 : 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                unselectedLabelStyle: TextStyle(fontSize: isSmallScreen ? 11 : 13),
+                labelPadding: EdgeInsets.symmetric(
+                  horizontal: isSmallScreen ? 6 : 8,
+                  vertical: isSmallScreen ? 10 : 12,
+                ),
                 tabs: tabs.map((tab) => Tab(text: tab)).toList(),
               ),
             ),
@@ -649,10 +693,11 @@ class _ChatTabState extends State<ChatTab> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: Text(name),
+        title: Center(child: Text(name)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Profile Picture
             FutureBuilder<DocumentSnapshot>(
               future: _firestore
                   .collection('users')
@@ -698,221 +743,255 @@ class _ChatTabState extends State<ChatTab> {
                 );
               },
             ),
+            const SizedBox(height: 20),
+            // Action Buttons - Centered
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Block/Unblock Button
+                FutureBuilder<DocumentSnapshot>(
+                  future: _firestore
+                      .collection('users')
+                      .doc(_auth.currentUser!.uid)
+                      .collection('blockedUsers')
+                      .doc(userId)
+                      .get(),
+                  builder: (context, blockSnapshot) {
+                    final isBlocked = blockSnapshot.hasData && blockSnapshot.data!.exists;
+
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          if (isBlocked) {
+                            await _unblockUser(userId, name);
+                          } else {
+                            await _blockUserFromProfile(userId, name);
+                          }
+                        },
+                        icon: Icon(
+                          isBlocked ? Icons.check_circle : Icons.block,
+                          size: 18,
+                        ),
+                        label: Text(isBlocked ? 'Unblock' : 'Block'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isBlocked ? Colors.green : Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                // Add Friend Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final currentUser = _auth.currentUser!;
+                      final currentUid = currentUser.uid;
+                      final currentName =
+                          currentUser.displayName ?? currentUser.email ?? 'Someone';
+
+                      try {
+                        // Check if user is blocked
+                        final isBlockedByMe = await _firestore
+                            .collection('users')
+                            .doc(currentUid)
+                            .collection('blockedUsers')
+                            .doc(userId)
+                            .get();
+
+                        if (isBlockedByMe.exists) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('You have blocked this user')),
+                          );
+                          return;
+                        }
+
+                        // Check if already friends
+                        final friendDoc = await _firestore
+                            .collection('users')
+                            .doc(currentUid)
+                            .collection('friends')
+                            .doc(userId)
+                            .get();
+
+                        if (friendDoc.exists) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('You are already friends')),
+                          );
+                          return;
+                        }
+
+                        // Check if request already sent
+                        final existingRequest = await _firestore
+                            .collection('friendRequests')
+                            .doc(userId)
+                            .collection('requests')
+                            .where('from', isEqualTo: currentUid)
+                            .where('status', isEqualTo: 'pending')
+                            .get();
+
+                        if (existingRequest.docs.isNotEmpty) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Friend request already sent')),
+                          );
+                          return;
+                        }
+
+                        // Check if blocked by them
+                        final blockedDoc = await _firestore
+                            .collection('users')
+                            .doc(userId)
+                            .collection('blockedUsers')
+                            .doc(currentUid)
+                            .get();
+
+                        if (blockedDoc.exists) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Unable to send friend request')),
+                          );
+                          return;
+                        }
+
+                        // Create notifications parent document for receiver if it doesn't exist
+                        await _firestore.collection('notifications').doc(userId).set({
+                          'createdAt': FieldValue.serverTimestamp(),
+                        }, SetOptions(merge: true));
+
+                        // Create notifications parent document for sender if it doesn't exist
+                        await _firestore.collection('notifications').doc(currentUid).set({
+                          'createdAt': FieldValue.serverTimestamp(),
+                        }, SetOptions(merge: true));
+
+                        // Use consistent request ID format
+                        final requestId = '${currentUid}_$userId';
+
+                        // Send friend request to receiver
+                        await _firestore
+                            .collection('friendRequests')
+                            .doc(userId)
+                            .collection('requests')
+                            .doc(requestId)
+                            .set({
+                              'from': currentUid,
+                              'to': userId,
+                              'status': 'pending',
+                              'timestamp': FieldValue.serverTimestamp(),
+                            });
+
+                        // Also add to sender's history
+                        await _firestore
+                            .collection('friendRequests')
+                            .doc(currentUid)
+                            .collection('requests')
+                            .doc(requestId)
+                            .set({
+                              'from': currentUid,
+                              'to': userId,
+                              'status': 'pending',
+                              'timestamp': FieldValue.serverTimestamp(),
+                            });
+
+                        // Send notification to receiver
+                        await _firestore
+                            .collection('notifications')
+                            .doc(userId)
+                            .collection('notifications')
+                            .add({
+                              'fromUid': currentUid,
+                              'fromName': currentName,
+                              'type': 'request_sent',
+                              'requestId': requestId,
+                              'message': '$currentName sent you a friend request',
+                              'timestamp': FieldValue.serverTimestamp(),
+                              'seen': false,
+                            });
+
+                        // Send confirmation notification to sender
+                        await _firestore
+                            .collection('notifications')
+                            .doc(currentUid)
+                            .collection('notifications')
+                            .add({
+                              'fromUid': userId,
+                              'fromName': name,
+                              'type': 'request_sent_confirm',
+                              'requestId': requestId,
+                              'message': 'You sent a friend request to $name',
+                              'timestamp': FieldValue.serverTimestamp(),
+                              'seen': false,
+                            });
+
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Friend request sent')),
+                        );
+                      } catch (e) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error sending request: $e')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.person_add, size: 18),
+                    label: const Text('Add Friend'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C88BF),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // DM Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final chatId = ChatService().generateChatId(_auth.currentUser!.uid, userId);
+                      await ChatService().createChatIfNotExists(chatId, [_auth.currentUser!.uid, userId]);
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatPage(
+                            chatId: chatId,
+                            otherUserName: name,
+                            otherUserUid: userId,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.message, size: 18),
+                    label: const Text('DM'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Close Button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Close'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
-        actions: [
-          // Check if user is blocked and show Block/Unblock button
-          FutureBuilder<DocumentSnapshot>(
-            future: _firestore
-                .collection('users')
-                .doc(_auth.currentUser!.uid)
-                .collection('blockedUsers')
-                .doc(userId)
-                .get(),
-            builder: (context, blockSnapshot) {
-              final isBlocked = blockSnapshot.hasData && blockSnapshot.data!.exists;
-
-              return TextButton.icon(
-                onPressed: () async {
-                  if (isBlocked) {
-                    // Unblock user
-                    await _unblockUser(userId, name);
-                  } else {
-                    // Block user
-                    await _blockUserFromProfile(userId, name);
-                  }
-                },
-                icon: Icon(
-                  isBlocked ? Icons.check_circle : Icons.block,
-                  color: isBlocked ? Colors.green : Colors.red,
-                ),
-                label: Text(
-                  isBlocked ? 'Unblock' : 'Block',
-                  style: TextStyle(
-                    color: isBlocked ? Colors.green : Colors.red,
-                  ),
-                ),
-              );
-            },
-          ),
-          TextButton(
-            onPressed: () async {
-              final currentUser = _auth.currentUser!;
-              final currentUid = currentUser.uid;
-              final currentName =
-                  currentUser.displayName ?? currentUser.email ?? 'Someone';
-
-              try {
-                // Check if user is blocked
-                final isBlockedByMe = await _firestore
-                    .collection('users')
-                    .doc(currentUid)
-                    .collection('blockedUsers')
-                    .doc(userId)
-                    .get();
-
-                if (isBlockedByMe.exists) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('You have blocked this user')),
-                  );
-                  return;
-                }
-
-                // Check if already friends
-                final friendDoc = await _firestore
-                    .collection('users')
-                    .doc(currentUid)
-                    .collection('friends')
-                    .doc(userId)
-                    .get();
-
-                if (friendDoc.exists) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('You are already friends')),
-                  );
-                  return;
-                }
-
-                // Check if request already sent
-                final existingRequest = await _firestore
-                    .collection('friendRequests')
-                    .doc(userId)
-                    .collection('requests')
-                    .where('from', isEqualTo: currentUid)
-                    .where('status', isEqualTo: 'pending')
-                    .get();
-
-                if (existingRequest.docs.isNotEmpty) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Friend request already sent')),
-                  );
-                  return;
-                }
-
-                // Check if blocked by them
-                final blockedDoc = await _firestore
-                    .collection('users')
-                    .doc(userId)
-                    .collection('blockedUsers')
-                    .doc(currentUid)
-                    .get();
-
-                if (blockedDoc.exists) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Unable to send friend request')),
-                  );
-                  return;
-                }
-
-                // Create notifications parent document for receiver if it doesn't exist
-                await _firestore.collection('notifications').doc(userId).set({
-                  'createdAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
-
-                // Create notifications parent document for sender if it doesn't exist
-                await _firestore.collection('notifications').doc(currentUid).set({
-                  'createdAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
-
-                // Use consistent request ID format
-                final requestId = '${currentUid}_$userId';
-
-                // Send friend request to receiver
-                await _firestore
-                    .collection('friendRequests')
-                    .doc(userId)
-                    .collection('requests')
-                    .doc(requestId)
-                    .set({
-                      'from': currentUid,
-                      'to': userId,
-                      'status': 'pending',
-                      'timestamp': FieldValue.serverTimestamp(),
-                    });
-
-                // Also add to sender's history
-                await _firestore
-                    .collection('friendRequests')
-                    .doc(currentUid)
-                    .collection('requests')
-                    .doc(requestId)
-                    .set({
-                      'from': currentUid,
-                      'to': userId,
-                      'status': 'pending',
-                      'timestamp': FieldValue.serverTimestamp(),
-                    });
-
-                // Send notification to receiver
-                await _firestore
-                    .collection('notifications')
-                    .doc(userId)
-                    .collection('notifications')
-                    .add({
-                      'fromUid': currentUid,
-                      'fromName': currentName,
-                      'type': 'request_sent',
-                      'requestId': requestId,
-                      'message': '$currentName sent you a friend request',
-                      'timestamp': FieldValue.serverTimestamp(),
-                      'seen': false,
-                    });
-
-                // Send confirmation notification to sender
-                await _firestore
-                    .collection('notifications')
-                    .doc(currentUid)
-                    .collection('notifications')
-                    .add({
-                      'fromUid': userId,
-                      'fromName': name,
-                      'type': 'request_sent_confirm',
-                      'requestId': requestId,
-                      'message': 'You sent a friend request to $name',
-                      'timestamp': FieldValue.serverTimestamp(),
-                      'seen': false,
-                    });
-
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Friend request sent')),
-                );
-              } catch (e) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error sending request: $e')),
-                );
-              }
-            },
-            child: const Text('Add Friend'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final chatId = ChatService().generateChatId(_auth.currentUser!.uid, userId);
-              await ChatService().createChatIfNotExists(chatId, [_auth.currentUser!.uid, userId]);
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatPage(
-                    chatId: chatId,
-                    otherUserName: name,
-                    otherUserUid: userId,
-                  ),
-                ),
-              );
-            },
-            child: const Text('DM'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
